@@ -191,19 +191,16 @@ if __name__ == "__main__":
 #         """
 #         B, N, L = text_tokens.shape
 #
-#         # ---- Image encoding ----
 #         image_features = self.clip_model.encode_image(images)
 #         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
 #         # [B, D]
-#
-#         # ---- Text encoding ----
+# 
 #         text_tokens = text_tokens.view(B * N, L)
 #         text_features = self.clip_model.encode_text(text_tokens)
 #         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
 #         text_features = text_features.view(B, N, -1)
 #         # [B, N, D]
 #
-#         # ---- Similarity ----
 #         similarity = torch.einsum("bd,bnd->bn", image_features, text_features)
 #         # [B, N]
 #
@@ -275,7 +272,7 @@ if __name__ == "__main__":
 #
 #     for epoch in range(num_epochs):
 #
-#         # ---- Train (其实只是评估) ----
+#         # Train (其实只是评估)
 #         model.eval()
 #         train_correct = train_total = 0
 #
@@ -299,7 +296,6 @@ if __name__ == "__main__":
 #         train_acc = train_correct / train_total
 #         train_accs.append(train_acc)
 #
-#         # ---- Validation ----
 #         val_correct = val_total = 0
 #         with torch.no_grad():
 #             for images, text_tokens in val_loader:
