@@ -6,9 +6,7 @@ import torchvision.models as models
 from tqdm import tqdm  # 进度条
 import matplotlib.pyplot as plt
 
-# ---------------------------
 # Encoders
-# ---------------------------
 class CLIPImageEncoder(nn.Module):
     def __init__(self, clip_model):
         super().__init__()
@@ -74,15 +72,12 @@ class FeatureFusion(nn.Module):
 #         fused = fused / fused.norm(dim=-1, keepdim=True)
 #         return fused
 
-# ---------------------------
 # Fusion Model
-# ---------------------------
 class FusionImageTextModel(nn.Module):
     def __init__(self, device):
         super().__init__()
         self.device = device
 
-        # ---- CLIP（只 load 一次）----
         self.clip_model, _ = clip.load("ViT-B/32", device=device)
         self.clip_model.eval()
         for p in self.clip_model.parameters():
@@ -150,7 +145,6 @@ def retrieval_evaluation(model, dataloader, device):
 
             B, N, L = text_tokens.shape  # N=5
 
-            # ---- Encode ----
             img_feats = model.encode_image(images).float()  # [B, 512]
 
             text_tokens_flat = text_tokens.view(B * N, L)
@@ -159,7 +153,6 @@ def retrieval_evaluation(model, dataloader, device):
             all_image_features.append(img_feats)
             all_text_features.append(txt_feats)
 
-            # ---- Ground truth mapping ----
             for i in range(B):
                 txt_indices = list(range(text_index, text_index + N))
                 img_to_txt.append(txt_indices)
@@ -170,11 +163,9 @@ def retrieval_evaluation(model, dataloader, device):
                 text_index += N
                 image_index += 1
 
-    # ---- 拼接所有特征 ----
     all_image_features = torch.cat(all_image_features, dim=0)
     all_text_features = torch.cat(all_text_features, dim=0)
 
-    # ---- Similarity Matrix ----
     similarity = all_image_features @ all_text_features.T  # [I, T]
 
     def compute_i2t(K):
@@ -217,31 +208,30 @@ def train_one_epoch(model, dataloader, optimizer, device, temperature=0.07):
 
         B, N, L = text_tokens.shape
 
-        # ---- 编码 ----
         img_feats = model.encode_image(images)  # [B, D]
         text_feats = model.encode_text(text_tokens.view(B * N, L))  # [B*N, D]
         text_feats = text_feats.view(B, N, -1)  # [B, N, D]
 
-        # ---- 对比相似度 ----
+        # 对比相似度
         # sim_i2t: [B, B] 每个图片和每个 batch 内所有 caption 的最大相似度
         # 先展开 text 为 [B, N*B] -> 这里使用 batch 内负样本
         text_feats_flat = text_feats.view(B*N, -1)  # [B*N, D]
         sim_matrix = img_feats @ text_feats_flat.T  # [B, B*N]
         sim_matrix /= temperature
 
-        # ---- 构建正样本 mask ----
+        # 构建正样本 mask
         # 每张图片对应的 N 条 caption 是正样本
         pos_mask = torch.zeros_like(sim_matrix)  # [B, B*N]
         for i in range(B):
             pos_mask[i, i*N:(i+1)*N] = 1
 
-        # ---- InfoNCE loss ----
+        # InfoNCE loss
         # log_softmax + mask
         log_probs = F.log_softmax(sim_matrix, dim=1)
         loss_i2t = - (log_probs * pos_mask).sum(dim=1) / pos_mask.sum(dim=1)
         loss_i2t = loss_i2t.mean()
 
-        # ---- Text to Image ----
+        # Text to Image
         sim_matrix_t = sim_matrix.T  # [B*N, B]
         # 每条 caption 对应的图片是正样本
         pos_mask_t = torch.zeros_like(sim_matrix_t)
@@ -414,7 +404,6 @@ def main():
     #           f"Train Acc: {train_acc:.4f} | "
     #           f"Val Acc: {val_acc:.4f}")
     #
-    # # ---- 绘制训练曲线 ----
     # plt.figure(figsize=(12, 5))
     # plt.subplot(1, 2, 1)
     # plt.plot(range(1, num_epochs + 1), train_losses, marker='o', label='Train Loss')
